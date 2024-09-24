@@ -1,0 +1,12 @@
+.login-form {
+  margin: 20px auto;
+  height: 80vh;
+  width: 25vw;
+  border: 1px solid black;
+  padding: 10px;
+  text-align: center;
+}
+
+.login-form * {
+  margin: 10px 10px;
+}
