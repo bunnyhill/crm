@@ -1,87 +1,46 @@
 const pool = require('../db');
+const bcrypt = require('bcrypt');
 
-//----------Admin  controllers-----------------//
+module.exports.loginAdmin = async (req, res) => {
+  console.log('Payload -', req.body);
 
-module.exports.getPendingCompanies = async (req, res) => {
   try {
-    const [companies] = await pool.query(
-      "SELECT userId, name, company_website FROM users WHERE role = 'company' AND company_isApproved = 0"
-    );
-    res.status(200).json({ message: '/admin/c/pending', data: companies });
-  } catch (err) {
-    console.error('Error fetching pending companies', err);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-module.exports.getCompanyDetails = async (req, res) => {
-  console.log('Params - ', req.params);
-  try {
-    const { companyId } = req.params;
-    const [company] = await pool.query(
-      "SELECT name, profile_image, about_company, company_website FROM users WHERE userId = ? AND role = 'Company'",
-      [companyId]
-    );
-    if (company.length === 0) {
-      return res.status(404).json({ message: 'Company Not Found' });
-    }
-    res.status(200).json({ message: 'Success', data: company[0] });
-  } catch (err) {
-    console.error('Error fetching company details', err);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-module.exports.approveCompany = async (req, res) => {
-  try {
-    const { companyId } = req.params;
-    const kbnCode = `KBN - ${Math.floor(100000 + Math.random() * 900000)}`;
+    const { email, password } = req.body;
+    const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [
+      email,
+    ]);
 
-    const response = await pool.query(
-      "UPDATE users SET company_isApproved = 1,last_admin_status = now(), kbn_code = ? WHERE userId = ? AND role = 'Company'",
-      [kbnCode, companyId]
-    );
-
-    if (response.affectedRows === 0) {
-      return res.status(404).json({ message: 'Company Not Found' });
+    // if username doesnt exist
+    if (rows.length === 0) {
+      return res.status(401).json({ message: 'Invalid email' });
     }
 
-    res.status(200).json({ message: 'Company Approved', kbn_code: kbnCode });
-  } catch (err) {
-    console.error('Error approving company', err);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-module.exports.getApprovedCompanies = async (req, res) => {
-  try {
-    const [companies] = await pool.query(
-      "SELECT userId, last_admin_status, name, kbn_code, company_website, business_type, admin_status FROM users WHERE role = 'Company' AND company_isApproved = 1 AND admin_status = 'pending' "
-    );
+    const user = rows[0];
 
-    if (companies.length === 0) {
-      return res.status(404).json({ message: 'Company Not Found' });
+    // password verification
+    try {
+      const isMatching = await bcrypt.compare(password, user.hpassword);
+
+      if (!isMatching) {
+        return res.status(401).json({ message: 'Wrong password' });
+      }
+    } catch (err) {
+      console.error('Error comparing passwords:', err.message);
+      return res.status(500).json({ message: err.message });
     }
 
-    res.status(200).json({ message: '/admin/c/approved', data: companies });
-  } catch (err) {
-    console.error('Error /admin/c/approved', err);
-    res.status(500).json({ message: 'Internal Server Error' });
-  }
-};
-module.exports.updateAdminStatus = async (req, res) => {
-  try {
-    const { companyId } = req.params;
-    const { admin_status } = req.body;
-    console.log(companyId, admin_status);
-
-    const response = await pool.query(
-      "UPDATE users SET admin_status = ? WHERE userId = ? AND role = 'Company'",
-      [admin_status, companyId]
-    );
-    if (response.affectedRows === 0) {
-      return res.status(404).json({ message: 'Company Not Found' });
+    // generating the verification token for user to login in
+    try {
+      const token = jwt.sign({ userId: user.userId }, process.env.TOKEN_KEY, {
+        expiresIn: '365d',
+      });
+      return res.status(200).json({ message: 'Login successful', token });
+    } catch (err) {
+      console.error('Error generating token:', err.message);
+      return res.status(500).json({ message: err.message });
     }
-    res.status(200).json({ message: 'Status Updated' });
   } catch (err) {
-    console.error('Error updating admin status', err);
+    console.error('Error during login: ', err.message);
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };

@@ -14,7 +14,7 @@ const testConnection = async () => {
   console.log('-------------------------------------');
 
   try {
-    const [rows] = await pool.query('SELECT 1 AS test');
+    const [rows] = await pool.query('SELECT 1 AS testQuery');
     console.log('SQL Server Connected', rows);
   } catch (err) {
     console.error('Error connecting to the database:', err);
